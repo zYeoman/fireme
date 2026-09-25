@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>FIRE计算器</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext x='16' y='27' font-size='27' text-anchor='middle' font-family='sans-serif'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E">
+<!-- htmx 走 CDN（锁定版本 + SRI）。要离线用：把 dist/htmx.min.js 存到同目录，改成 src="htmx.min.js" 并删掉 integrity/crossorigin。 -->
+<script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
+        integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+        crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#f4f6f9;--panel:#fff;--line:#e3e8ef;--ink:#111827;--muted:#6b7280;
+  --brand:#2563eb;--brand-soft:#eff6ff;--good:#047857;--bad:#dc2626;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased}
+header{padding:24px 26px 0}
+h1{margin:0;font-size:20px;letter-spacing:.2px}
+header p{margin:7px 0 0;color:var(--muted);font-size:12.5px;max-width:980px}
+h3{margin:18px 0 8px;font-size:13.5px;font-weight:700}
+h3 small{font-weight:500;color:var(--muted);font-size:12px;margin-left:6px}
+.layout{display:grid;grid-template-columns:356px minmax(0,1fr);gap:18px;padding:18px 26px 48px;align-items:start}
+.layout>*{min-width:0}
+@media(max-width:1020px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+form.panel{padding:16px 16px 18px}
+label.f{display:block;margin-bottom:12px}
+label.f>span{display:block;font-size:11.5px;font-weight:600;letter-spacing:.3px;color:var(--muted);margin-bottom:5px}
+input[type=number]{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fbfcfe;
+  color:inherit;font:inherit;font-variant-numeric:tabular-nums}
+input[type=number]:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+fieldset{border:1px solid var(--line);border-radius:10px;padding:12px 12px 2px;margin:0 0 14px}
+legend{font-size:11.5px;font-weight:600;color:var(--muted);padding:0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 12px}
+.chips button{font:inherit;font-size:12px;padding:5px 9px;border:1px solid var(--line);background:#fff;color:#374151;
+  border-radius:999px;cursor:pointer;font-variant-numeric:tabular-nums}
+.chips button:hover{border-color:var(--brand);color:var(--brand)}
+.chips button.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:600}
+.btn{width:100%;padding:10px;border-radius:9px;border:1px solid var(--brand);background:var(--brand);color:#fff;
+  font:inherit;font-weight:600;cursor:pointer}
+.btn:hover{filter:brightness(1.06)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.card .k{font-size:11.5px;font-weight:600;letter-spacing:.3px;color:var(--muted)}
+.card .v{font-size:19px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+.card .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+.card.good{background:linear-gradient(#f0fdf4,#fff);border-color:#bbf7d0}
+.card.good .v{color:var(--good)}
+.card.bad{background:linear-gradient(#fef2f2,#fff);border-color:#fecaca}
+.card.bad .v{color:var(--bad)}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 6px 4px;margin-top:14px}
+.chart svg{display:block;width:100%;height:auto}
+.chart .cap{font-size:11.5px;color:var(--muted);padding:0 12px 8px}
+.ax{font-size:12px;fill:var(--muted);font-family:inherit}
+.ax2{font-size:12px;fill:#94a3b8;font-family:inherit}
+.scroll{border:1px solid var(--line);border-radius:12px;background:var(--panel);max-height:380px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:6px 12px;text-align:right;border-bottom:1px solid #f1f5f9;font-size:12.5px;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-size:11.5px;z-index:1;
+  box-shadow:inset 0 -1px 0 var(--line)}
+tbody tr:last-child td{border-bottom:0}
+tr.cur td{background:var(--brand-soft)}
+tr.hit td{background:#fef2f2}
+tr.dead td{color:#9ca3af}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>FIRE计算器</h1>
+  <p>一次性攒下一笔本金，按月支取当作自己的工资：每月先按年化收益率计息，再发当月工资；工资每年年初按分段规则上调。收益率跑不赢加薪时，本金要求的倍数会很高 —— 这正是这张图要告诉你的事。所有数字都可以改。</p>
+</header>
+
+<main class="layout">
+
+  <form id="controls" class="panel" hx-post="/simulate" hx-target="#out" hx-swap="innerHTML"
+        hx-trigger="load, input delay:400ms, submit">
+
+    <label class="f"><span>现有存款（元）</span>
+      <input name="principal" type="number" value="5000000" min="0">
+    </label>
+
+    <label class="f"><span>起始年薪（元 / 年）</span>
+      <input name="salary" type="number" value="124110" min="0">
+    </label>
+    <div class="chips" id="chips"></div>
+
+    <div class="grid2">
+      <label class="f"><span>年化收益率 %</span>
+        <input name="rate" type="number" value="1.5" step="any">
+      </label>
+      <label class="f"><span>领取年限（年）</span>
+        <input name="years" type="number" value="30" min="1" max="60" step="1">
+      </label>
+    </div>
+
+    <fieldset>
+      <legend>加薪规则（每年年初调一次）</legend>
+      <div class="grid2">
+        <label class="f"><span>第 1 段 年数</span>
+          <input name="t1" type="number" value="10" min="0" step="1"></label>
+        <label class="f"><span>第 1 段 年加薪 %</span>
+          <input name="g1" type="number" value="5" step="any"></label>
+        <label class="f"><span>第 2 段 年数</span>
+          <input name="t2" type="number" value="10" min="0" step="1"></label>
+        <label class="f"><span>第 2 段 年加薪 %</span>
+          <input name="g2" type="number" value="3.5" step="any"></label>
+      </div>
+      <label class="f"><span>之后各年 年加薪 %</span>
+        <input name="g3" type="number" value="2.5" step="any"></label>
+    </fieldset>
+
+    <button type="button" class="btn" hx-on:click="fillRequired()">把「刚好够」的本金填进去</button>
+  </form>
+
+  <section id="out"></section>
+
+</main>
+
+<script>
+/* =====================================================================
+   本站没有后端：htmx 仍然负责表单触发、请求生命周期与 DOM 交换，
+   只是请求在发出前被下面这个监听器截住，由本地函数算出 HTML 当响应。
+   ===================================================================== */
+
+const SIM_PATH = '/simulate';
+
+// 2024 年城镇非私营单位就业人员年平均工资（国家统计局 / 各地统计局公报）
+const PRESETS = [
+  {name:'全国',     salary:124110},
+  {name:'北京',     salary:224608},
+  {name:'上海',     salary:239557},
+  {name:'深圳',     salary:174478},
+  {name:'杭州',     salary:162774},
+  {name:'广州',     salary:159312},
+  {name:'全国私营', salary:69476},
+];
+
+let lastRequired = null;
+
+/* ---------- 读参数 ---------- */
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+function readForm(form) {
+  const fd = new FormData(form);
+  const g = (k, d) => { const v = Number(fd.get(k)); return Number.isFinite(v) ? v : d; };
+  return {
+    principal: Math.max(0, g('principal', 5000000)),
+    salary:    Math.max(0, g('salary', 124110)),
+    ratePct:   clamp(g('rate', 1.5), -99, 1000),
+    years:     clamp(Math.round(g('years', 30)), 1, 60),
+    t1:        Math.max(0, Math.round(g('t1', 10))),
+    g1:        g('g1', 5) / 100,
+    t2:        Math.max(0, Math.round(g('t2', 10))),
+    g2:        g('g2', 3.5) / 100,
+    g3:        g('g3', 2.5) / 100,
+  };
+}
+
+/* ---------- 计算 ---------- */
+
+// 年薪序列 + 月利率（年化 r 按月复利折算，使实际年收益正好是 r）
+function makePlan(o) {
+  const t1 = Math.min(o.t1, o.years);
+  const t2 = Math.min(o.t2, Math.max(0, o.years - t1));
+  const sals = [];
+  let s = o.salary;
+  for (let y = 1; y <= o.years; y++) {
+    if (y > 1) {
+      const p = y - 1;                                  // 这次加薪发生在第 p 年之后
+      s *= 1 + (p <= t1 ? o.g1 : p <= t1 + t2 ? o.g2 : o.g3);
+    }
+    sals.push(s);
+  }
+  return { sals, years: o.years, rm: Math.pow(1 + o.ratePct / 100, 1 / 12) - 1 };
+}
+
+// 每月：先计息，再发工资；钱不够发满当月工资即为耗尽
+function run(principal, P) {
+  const months = P.years * 12;
+  const series = new Array(months + 1);
+  series[0] = principal;
+  const rows = [];
+  let bal = principal, depleted = null, totInt = 0, totPaid = 0;
+
+  for (let y = 1; y <= P.years; y++) {
+    const pay = P.sals[y - 1] / 12;
+    const tol = pay * 1e-9 + 1e-6;
+    let yi = 0, yp = 0;
+    for (let m = 1; m <= 12; m++) {
+      const i = (y - 1) * 12 + m;
+      if (depleted !== null) { series[i] = 0; continue; }
+      const interest = bal * P.rm;
+      bal += interest; yi += interest;
+      const paid = bal + tol < pay ? Math.max(0, bal) : pay;
+      bal -= paid; yp += paid;
+      if (paid < pay) { depleted = i; bal = 0; }
+      series[i] = bal;
+    }
+    totInt += yi; totPaid += yp;
+    rows.push({ year: y, salary: P.sals[y - 1], paid: yp, interest: yi, end: bal, dead: depleted !== null && yp < P.sals[y - 1] });
+  }
+  return { series, rows, depleted, depletedYear: depleted && Math.ceil(depleted / 12), totInt, totPaid, final: bal };
+}
+
+// 让期末余额刚好归零所需的本金：把每笔支出按 (1+rm)^n 折现到今天
+function requiredPrincipal(P) {
+  const d = 1 / (1 + P.rm);
+  let p = 0, f = 1;
+  for (let y = 0; y < P.years; y++) {
+    const pay = P.sals[y] / 12;
+    for (let m = 0; m < 12; m++) { f *= d; p += pay * f; }
+  }
+  return p;
+}
+
+/* ---------- 格式化 ---------- */
+
+const money = v => '¥' + Math.round(v).toLocaleString('zh-CN');
+const wan   = v => (v / 10000).toFixed(v >= 1000000 ? 0 : 1) + '万';
+const pct   = v => (v * 100).toFixed(1).replace(/\.0$/, '') + '%';
+const monthLabel = i => `第 ${Math.floor((i - 1) / 12) + 1} 年 ${((i - 1) % 12) + 1} 月`;
+
+function niceCeil(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+const axisLabel = v => v === 0 ? '0' : (v / 10000).toFixed(v >= 1000000 ? 0 : 1) + '万';
+
+/* ---------- 图表（服务端风格：直接吐 SVG） ---------- */
+
+function chartSVG(series, years, depleted) {
+  const W = 980, H = 430, L = 86, R = 30, T = 30, B = 48;
+  const iw = W - L - R, ih = H - T - B;
+  const months = series.length - 1;
+  const yMax = niceCeil(Math.max(Math.max(...series), 1));
+  const X = i => L + iw * i / months;
+  const Y = v => T + ih * (1 - v / yMax);
+
+  const line = series.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ');
+  const area = `${line} L${X(months).toFixed(1)} ${Y(0)} L${L} ${Y(0)} Z`;
+
+  let grid = '';
+  for (let k = 0; k <= 5; k++) {
+    const v = yMax * k / 5, y = Y(v).toFixed(1);
+    grid += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="${k ? '#eef2f7' : '#d8dee9'}"/>`
+          + `<text x="${L - 10}" y="${y}" dy="4" text-anchor="end" class="ax">${axisLabel(v)}</text>`;
+  }
+
+  const step = years <= 12 ? 1 : years <= 32 ? 5 : 10;
+  let ticks = '';
+  for (const y of new Set([...Array(Math.floor(years / step) + 1).keys()].map(i => i * step).concat(years))) {
+    const x = X(y * 12).toFixed(1);
+    ticks += `<line x1="${x}" y1="${T + ih}" x2="${x}" y2="${T + ih + 5}" stroke="#cbd5e1"/>`
+           + `<text x="${x}" y="${T + ih + 21}" text-anchor="middle" class="ax2">${y}年</text>`;
+  }
+
+  let mark = '';
+  if (depleted) {
+    const x = X(depleted), right = x > W - 240;
+    mark = `<line x1="${x.toFixed(1)}" y1="${T}" x2="${x.toFixed(1)}" y2="${T + ih}" stroke="#dc2626"
+              stroke-width="1.5" stroke-dasharray="5 4"/>`
+         + `<circle cx="${x.toFixed(1)}" cy="${Y(0)}" r="4" fill="#dc2626"/>`
+         + `<text x="${(x + (right ? -8 : 8)).toFixed(1)}" y="${T + 14}" text-anchor="${right ? 'end' : 'start'}"
+              fill="#dc2626" class="ax">${monthLabel(depleted)} 耗尽</text>`;
+  }
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
+              aria-label="存款余额随月份变化的折线图">
+    <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2563eb" stop-opacity=".26"/>
+      <stop offset="1" stop-color="#2563eb" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grid}${ticks}
+    <path d="${area}" fill="url(#fill)"/>
+    <path d="${line}" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linejoin="round"/>
+    ${mark}
+  </svg>`;
+}
+
+/* ---------- 组装响应 ---------- */
+
+function respond(form) {
+  const o = readForm(form);
+  const P = makePlan(o);
+  const res = run(o.principal, P);
+  const req = requiredPrincipal(P);
+  lastRequired = req;
+
+  const gap = o.principal - req;
+  const ok = res.depleted === null;
+  const totalSalary = P.sals.reduce((a, b) => a + b, 0);
+
+  const cards = `<div class="cards">
+    <div class="card"><div class="k">刚好够 ${P.years} 年所需本金</div>
+      <div class="v">${money(req)}</div><div class="s">${wan(req)} · ${(req / (P.sals[0] || 1)).toFixed(1)} 倍起始年薪</div></div>
+    <div class="card ${gap >= 0 ? 'good' : 'bad'}"><div class="k">现有存款</div>
+      <div class="v">${money(o.principal)}</div>
+      <div class="s">${gap >= 0 ? '比所需多 ' + money(gap) : '缺口 ' + money(-gap)}</div></div>
+    <div class="card ${ok ? 'good' : 'bad'}"><div class="k">结论</div>
+      <div class="v">${ok ? `够花，期末剩 ${wan(res.final)}` : `${monthLabel(res.depleted)} 耗尽`}</div>
+      <div class="s">${ok ? `撑满 ${P.years} 年` : `只撑了 ${Math.floor((res.depleted - 1) / 12)} 年 ${((res.depleted - 1) % 12) + 1} 个月`}</div></div>
+    <div class="card"><div class="k">累计取出</div>
+      <div class="v">${money(res.totPaid)}</div><div class="s">名义工资合计 ${money(totalSalary)}</div></div>
+    <div class="card"><div class="k">累计利息收入</div>
+      <div class="v">${money(res.totInt)}</div><div class="s">年化 ${pct(o.ratePct / 100)} 按月复利</div></div>
+  </div>`;
+
+  const chart = `<div class="chart">
+    ${chartSVG(res.series, P.years, res.depleted)}
+    <div class="cap">存款余额（按月，含当月计息与当月支取）· 末年工资 ${money(P.sals[P.years - 1])} / 年（${money(P.sals[P.years - 1] / 12)} / 月）</div>
+  </div>`;
+
+  const presetRows = PRESETS.map(p => {
+    const pp = makePlan({ ...o, salary: p.salary });
+    const r = requiredPrincipal(pp);
+    return `<tr class="${p.salary === o.salary ? 'cur' : ''}">
+      <td>${p.name}</td><td>${money(p.salary)}</td>
+      <td>${money(r)}</td><td>${(r / p.salary).toFixed(1)} 倍</td></tr>`;
+  }).join('');
+
+  const yearRows = res.rows.map(r => {
+    const hit = r.year === res.depletedYear;
+    const cls = hit ? 'hit' : r.dead ? 'dead' : '';
+    return `<tr class="${cls}">
+      <td>第 ${r.year} 年</td>
+      <td>${money(r.salary)}</td>
+      <td>${money(r.paid)}${hit && r.paid < r.salary ? '（不足）' : ''}</td>
+      <td>${money(r.interest)}</td>
+      <td>${money(r.end)}${hit ? ' ← 耗尽' : ''}</td></tr>`;
+  }).join('');
+
+  return `${cards}${chart}
+    <h3>各挡位所需本金 <small>同一套收益率 / 加薪 / 年限参数下，从该年薪起步需要多少本金</small></h3>
+    <div class="scroll"><table>
+      <thead><tr><th>挡位（2024 城镇非私营单位平均年薪）</th><th>起始年薪</th><th>所需本金</th><th>相当于</th></tr></thead>
+      <tbody>${presetRows}</tbody></table></div>
+    <h3>逐年明细</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>年份</th><th>当年年薪</th><th>当年取出</th><th>当年利息</th><th>年末余额</th></tr></thead>
+      <tbody>${yearRows}</tbody></table></div>`;
+}
+
+/* ---------- 前端交互 ---------- */
+
+function pickPreset(v) {
+  const form = document.getElementById('controls');
+  form.elements.namedItem('salary').value = v;
+  form.requestSubmit();
+}
+
+function fillRequired() {
+  if (lastRequired === null) return;
+  const form = document.getElementById('controls');
+  form.elements.namedItem('principal').value = Math.ceil(lastRequired);
+  form.requestSubmit();
+}
+
+function paintChips(salary) {
+  document.querySelectorAll('#chips button').forEach(b => {
+    b.classList.toggle('on', Number(b.dataset.v) === Number(salary));
+  });
+}
+
+// 原生校验拦住请求时（越界 / 格式不符），把原因摆到台面上，别让界面静默不动
+document.addEventListener('htmx:validation:halted', evt => {
+  const bad = [...evt.detail.elt.querySelectorAll(':invalid')].map(el =>
+    (el.closest('label') && el.closest('label').querySelector('span').textContent || el.name) + ' = ' + el.value);
+  document.getElementById('out').innerHTML = `<div class="card bad">
+    <div class="k">参数不合法，已停止模拟</div>
+    <div class="v">${bad.join('，')}</div>
+    <div class="s">改回允许范围后会自动重新模拟</div></div>`;
+});
+
+document.getElementById('chips').innerHTML = PRESETS.map(p =>
+  `<button type="button" data-v="${p.salary}" hx-on:click="pickPreset(${p.salary})">${p.name} ${wan(p.salary)}</button>`
+).join('');
+
+document.addEventListener('htmx:beforeRequest', evt => {
+  if (evt.detail.pathInfo?.requestPath !== SIM_PATH) return;
+  evt.preventDefault();                                  // 取消真实网络请求
+  const form = evt.detail.elt;
+  const target = evt.detail.target;
+  try {
+    target.innerHTML = respond(form);
+  } catch (err) {
+    target.innerHTML = `<div class="card bad"><div class="k">算出错了</div><div class="v">${err.message}</div></div>`;
+  }
+  htmx.process(target);
+  paintChips(form.elements.namedItem('salary').value);
+});
+</script>
+</body>
+</html>
